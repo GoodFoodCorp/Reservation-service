@@ -95,6 +95,32 @@ Les transitions sont validées : impossible de passer directement de `PENDING` �
 
 ---
 
+## Dépendances
+
+> **Légende** — 🔴 indispensable (le service ne démarre pas ou ne sert à rien) ·
+> 🟠 nécessaire à une fonctionnalité (le reste continue de marcher) ·
+> 🟡 optionnelle (dégradation silencieuse, journalisée)
+
+| Dépendance | Type | Conséquence si absente |
+|---|---|---|
+| **MongoDB** (`reservation-db`) | 🔴 | Le service ne démarre pas |
+| **auth-service** | 🟠 | Aucun appel réseau, mais toutes les routes exigent un jeton valide |
+
+**Aucun appel sortant.** `reservation-service` est **totalement autonome** : il
+ne dépend d'aucun autre service Good Food au moment de l'exécution. Il ne connaît
+des restaurants que leur identifiant, transmis par le client ou lu dans le jeton.
+
+### Qui dépend de ce service
+
+| Service | Type | Conséquence si `reservation-service` est arrêté |
+|---|---|---|
+| `web-app` | 🟠 | Seules les pages **Réservations** (client et portail) sont cassées |
+
+**Aucun autre service ne l'appelle.** On peut donc l'arrêter sans conséquence sur
+les commandes, les paiements, les stocks ou les livraisons.
+
+---
+
 ## Lancement
 
 ```bash
