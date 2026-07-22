@@ -1,0 +1,41 @@
+services:
+  reservation-service:
+    build: .
+    container_name: reservation-service
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@reservation-db:27017/reservation_db?authSource=admin
+    depends_on:
+      reservation-db:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  reservation-db:
+    image: mongo:7
+    container_name: reservation-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - "27018:27017"
+    volumes:
+      - reservation_data:/data/db
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+networks:
+  microservices-net:
+    external: true
+volumes:
+  reservation_data:
