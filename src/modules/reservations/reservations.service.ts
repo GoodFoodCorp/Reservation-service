@@ -12,6 +12,16 @@ const ROLE_ADMIN = 'admin';
 /** How many parties a restaurant can seat in the same hour (POC capacity rule). */
 const MAX_PARTIES_PER_HOUR = 10;
 
+/** Service hours the storefront offers slots for (lunch, then dinner) — mirrors
+ *  web-app's reservationSlots.ts, since there's no shared "opening hours"
+ *  service yet. */
+const SERVICE_HOURS = [12, 13, 19, 20, 21, 22];
+
+export interface HourAvailability {
+  hour: number;
+  full: boolean;
+}
+
 /** Transitions a restaurant may apply to a reservation. */
 const ALLOWED_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
   [ReservationStatus.Pending]: [ReservationStatus.Confirmed, ReservationStatus.Cancelled],
@@ -43,10 +53,7 @@ export class ReservationsService {
     }
 
     // Capacity: cap the number of parties booked in the same hour.
-    const hourStart = new Date(reservationAt);
-    hourStart.setMinutes(0, 0, 0);
-    const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
-    const booked = await this.repo.countOverlapping(dto.restaurantId, hourStart, hourEnd);
+    const booked = await this.countBookedInHour(dto.restaurantId, reservationAt);
     if (booked >= MAX_PARTIES_PER_HOUR) {
       throw DomainError.conflict('this restaurant is fully booked for that time slot');
     }
@@ -66,6 +73,26 @@ export class ReservationsService {
   /** The customer's own reservations. */
   listMine(actor: Actor): Promise<ReservationDocument[]> {
     return this.repo.listByCustomer(actor.userId);
+  }
+
+  /** Which service hours are already fully booked for a restaurant on a given
+   *  day — lets the storefront grey out full time slots before the customer
+   *  even tries to book one. */
+  async getAvailability(restaurantId: string, date: string): Promise<HourAvailability[]> {
+    if (!restaurantId) {
+      throw DomainError.validation('restaurantId is required');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw DomainError.validation('date must be in YYYY-MM-DD format');
+    }
+
+    return Promise.all(
+      SERVICE_HOURS.map(async (hour) => {
+        const slot = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00.000Z`);
+        const booked = await this.countBookedInHour(restaurantId, slot);
+        return { hour, full: booked >= MAX_PARTIES_PER_HOUR };
+      }),
+    );
   }
 
   /** The reservations of the manager's own restaurant (tenant-scoped). */
@@ -112,6 +139,17 @@ export class ReservationsService {
     }
     reservation.status = ReservationStatus.Cancelled;
     return this.repo.save(reservation);
+  }
+
+  /** Active parties booked in the hour containing `at`, for capacity checks.
+   *  Bucketed in UTC explicitly — relying on the server's local time here
+   *  would silently disagree with getAvailability() outside a UTC-configured
+   *  container. */
+  private countBookedInHour(restaurantId: string, at: Date): Promise<number> {
+    const hourStart = new Date(at);
+    hourStart.setUTCMinutes(0, 0, 0);
+    const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
+    return this.repo.countOverlapping(restaurantId, hourStart, hourEnd);
   }
 
   private requireOwnRestaurant(actor: Actor): string {
