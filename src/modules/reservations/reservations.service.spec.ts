@@ -107,6 +107,39 @@ describe('create', () => {
   });
 });
 
+describe('getAvailability', () => {
+  it('flags an hour as full once it hits the capacity cap', async () => {
+    const { service } = setup();
+    const date = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    for (let i = 0; i < 10; i++) {
+      await service.create(customer, baseDto({ reservationAt: tomorrowAt(19) }));
+    }
+
+    const availability = await service.getAvailability(RESTO_A, date);
+    const at19 = availability.find((a) => a.hour === 19);
+    const at20 = availability.find((a) => a.hour === 20);
+    expect(at19?.full).toBe(true);
+    expect(at20?.full).toBe(false);
+  });
+
+  it('is scoped per restaurant', async () => {
+    const { service } = setup();
+    const date = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    for (let i = 0; i < 10; i++) {
+      await service.create(customer, baseDto({ restaurantId: RESTO_A, reservationAt: tomorrowAt(19) }));
+    }
+
+    const availabilityB = await service.getAvailability(RESTO_B, date);
+    expect(availabilityB.find((a) => a.hour === 19)?.full).toBe(false);
+  });
+
+  it('rejects a malformed date', async () => {
+    const { service } = setup();
+    await expectError(service.getAvailability(RESTO_A, 'not-a-date'), DomainErrorCode.Validation);
+  });
+});
+
 describe('tenant isolation', () => {
   it("a manager only sees their own restaurant's reservations", async () => {
     const { service } = setup();

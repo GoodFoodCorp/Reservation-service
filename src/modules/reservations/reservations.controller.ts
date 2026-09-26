@@ -38,6 +38,12 @@ export class ReservationsController {
     return this.reservations.listForMyRestaurant(actor, status);
   }
 
+  @Get('availability')
+  @ApiOperation({ summary: 'Fully booked hours for a restaurant on a given day' })
+  getAvailability(@Query('restaurantId') restaurantId: string, @Query('date') date: string) {
+    return this.reservations.getAvailability(restaurantId, date);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Reservation detail' })
   getById(@CurrentActor() actor: Actor, @Param('id') id: string) {
