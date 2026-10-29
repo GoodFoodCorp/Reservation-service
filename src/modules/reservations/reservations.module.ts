@@ -4,12 +4,14 @@ import { Reservation, ReservationSchema } from './entities/reservation.schema';
 import { ReservationsController } from './reservations.controller';
 import { RESERVATION_REPOSITORY, MongooseReservationRepository } from './reservations.repository';
 import { ReservationsService } from './reservations.service';
+import { RestaurantsClient } from './restaurants.client';
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: Reservation.name, schema: ReservationSchema }])],
   controllers: [ReservationsController],
   providers: [
     ReservationsService,
+    RestaurantsClient,
     { provide: RESERVATION_REPOSITORY, useClass: MongooseReservationRepository },
   ],
 })
